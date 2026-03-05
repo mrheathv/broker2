@@ -5,7 +5,7 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "model-board"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "822794c5-672a-4339-9a33-abd3f59b7172"
 migrations_dir = "migrations"
 
 [vars]
