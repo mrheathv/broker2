@@ -35,6 +35,33 @@ async function request<T>(
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface PublicPricingModel {
+  id: number;
+  provider: string;
+  provider_model_id: string;
+  display_name: string;
+  prompt_usd_per_1k: number | null;
+  completion_usd_per_1k: number | null;
+  snapshot_date: string | null;
+}
+
+export interface SelectModelResponse {
+  selected: {
+    provider: string;
+    model: string;
+    params: Record<string, number>;
+    estimated_cost_usd: number;
+  };
+  fallbacks: Array<{
+    provider: string;
+    model: string;
+    params: Record<string, number>;
+    estimated_cost_usd: number;
+  }>;
+  snapshot_date: string | null;
+  policy_used: string;
+}
+
 export interface Model {
   id: number;
   provider: string;
@@ -147,4 +174,22 @@ export const api = {
     request<{ synced: number; errors: string[]; date: string }>('/api/jobs/pricing-ingest', {
       method: 'POST',
     }),
+
+  // Public (no auth)
+  getPublicPricing: () =>
+    request<{ models: PublicPricingModel[]; snapshotDate: string | null }>(
+      '/api/public/pricing',
+      {},
+      false
+    ),
+  selectModel: (data: {
+    policy_name?: string;
+    estimated_prompt_tokens: number;
+    estimated_completion_tokens: number;
+  }) =>
+    request<SelectModelResponse>(
+      '/api/select-model',
+      { method: 'POST', body: JSON.stringify(data) },
+      false
+    ),
 };

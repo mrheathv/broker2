@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clearToken } from '@/lib/auth';
 
 const links = [
-  { href: '/', label: 'Dashboard' },
+  { href: '/admin', label: 'Dashboard' },
   { href: '/performance', label: 'Performance' },
   { href: '/policies', label: 'Policies' },
 ];
@@ -29,7 +29,7 @@ export default function Nav() {
             </span>
             <div className="flex gap-1">
               {links.map(({ href, label }) => {
-                const active = pathname === href || (href !== '/' && pathname?.startsWith(href));
+                const active = pathname === href || pathname?.startsWith(href + '/');
                 return (
                   <Link
                     key={href}

@@ -1,170 +1,286 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import AuthGuard from '@/components/AuthGuard';
-import { api, DashboardModel, DashboardData } from '@/lib/api';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { api, PublicPricingModel, SelectModelResponse } from '@/lib/api';
 
 function fmt(val: number | null | undefined, decimals = 4): string {
   if (val == null) return '—';
   return `$${val.toFixed(decimals)}`;
 }
 
-function score(val: number | null | undefined): string {
-  if (val == null) return '—';
-  return val.toFixed(4);
+function vsGpt4o(model: PublicPricingModel, gpt4oPrice: number | null): string {
+  if (model.prompt_usd_per_1k == null || gpt4oPrice == null) return '—';
+  if (model.provider === 'openai' && model.provider_model_id === 'gpt-4o') return 'baseline';
+  const pct = ((model.prompt_usd_per_1k - gpt4oPrice) / gpt4oPrice) * 100;
+  return pct < 0 ? `${pct.toFixed(0)}%` : `+${pct.toFixed(0)}%`;
 }
 
-export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
-  const [error, setError] = useState('');
+const POLICIES = [
+  { label: 'Cheapest', name: 'cheapest', desc: 'minimize cost' },
+  { label: 'Balanced', name: 'balanced', desc: 'cost + quality + speed' },
+  { label: 'Highest Quality', name: 'highest_quality', desc: 'best output' },
+];
 
-  const load = useCallback(async () => {
-    try {
-      setError('');
-      const d = await api.getDashboard();
-      setData(d);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+export default function LandingPage() {
+  const [models, setModels] = useState<PublicPricingModel[]>([]);
+  const [snapshotDate, setSnapshotDate] = useState<string | null>(null);
+  const [loadingPricing, setLoadingPricing] = useState(true);
+
+  const [promptTokens, setPromptTokens] = useState(1000);
+  const [completionTokens, setCompletionTokens] = useState(500);
+  const [policy, setPolicy] = useState('balanced');
+  const [result, setResult] = useState<SelectModelResponse | null>(null);
+  const [querying, setQuerying] = useState(false);
+  const [queryError, setQueryError] = useState('');
+
+  useEffect(() => {
+    api
+      .getPublicPricing()
+      .then((d) => {
+        setModels(d.models);
+        setSnapshotDate(d.snapshotDate);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPricing(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const gpt4oPrice =
+    models.find((m) => m.provider === 'openai' && m.provider_model_id === 'gpt-4o')
+      ?.prompt_usd_per_1k ?? null;
 
-  async function handleSync() {
-    setSyncing(true);
-    setSyncMsg('');
+  async function handleSelect() {
+    setQuerying(true);
+    setQueryError('');
+    setResult(null);
     try {
-      const result = await api.syncPricing();
-      setSyncMsg(`Synced ${result.synced} models for ${result.date}${result.errors.length ? ` (${result.errors.length} errors)` : ''}.`);
-      await load();
+      const r = await api.selectModel({
+        policy_name: policy,
+        estimated_prompt_tokens: promptTokens,
+        estimated_completion_tokens: completionTokens,
+      });
+      setResult(r);
     } catch (err) {
-      setSyncMsg(err instanceof Error ? err.message : 'Sync failed');
+      setQueryError(err instanceof Error ? err.message : 'Request failed');
     } finally {
-      setSyncing(false);
-    }
-  }
-
-  async function toggleActive(model: DashboardModel) {
-    try {
-      await api.updateModel(model.id, { is_active: !model.isActive });
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed');
+      setQuerying(false);
     }
   }
 
   return (
-    <AuthGuard>
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-100">Pricing Board</h1>
-            {data && (
-              <p className="text-sm text-gray-400 mt-0.5">
-                {data.snapshotDate
-                  ? `Latest snapshot: ${data.snapshotDate}`
-                  : 'No pricing data yet — run a sync.'}
-                {data.defaultPolicy && (
-                  <span className="ml-3 text-gray-500">
-                    Policy scores use: <span className="text-gray-300">{data.defaultPolicy}</span>
-                    {' '}({data.refTokens.prompt}K prompt + {data.refTokens.completion / 1000 * 1000}K completion)
-                  </span>
-                )}
-              </p>
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      {/* Top bar */}
+      <header className="border-b border-gray-800 bg-gray-900">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 flex h-14 items-center justify-between">
+          <span className="text-base font-semibold text-indigo-400 tracking-tight">
+            Model Board
+          </span>
+          <Link
+            href="/admin"
+            className="text-sm text-gray-400 hover:text-gray-100 transition-colors"
+          >
+            Admin →
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12 space-y-14">
+        {/* Hero */}
+        <section className="space-y-3">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-100 leading-tight">
+            Route every LLM call to the<br className="hidden sm:block" /> right model,
+            automatically.
+          </h1>
+          <p className="text-gray-400 text-lg max-w-2xl">
+            Real-time pricing from OpenRouter. Configurable cost / quality / latency policies.
+            One API call to get a ranked recommendation + fallbacks.
+          </p>
+        </section>
+
+        {/* Live pricing table */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              Live Pricing
+            </h2>
+            {snapshotDate && (
+              <span className="text-xs text-gray-600">Updated {snapshotDate}</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            {syncMsg && <span className="text-xs text-gray-400">{syncMsg}</span>}
-            <button onClick={handleSync} disabled={syncing} className="btn-primary">
-              {syncing ? 'Syncing…' : 'Sync Pricing Now'}
-            </button>
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="card p-4 border-red-800 text-red-400 text-sm">{error}</div>
-        )}
-
-        {/* Table */}
-        {loading ? (
-          <div className="text-center py-16 text-gray-500 text-sm">Loading…</div>
-        ) : (
           <div className="card overflow-x-auto">
-            <table className="w-full min-w-[900px]">
-              <thead className="border-b border-gray-800">
-                <tr>
-                  <th className="th">Provider</th>
-                  <th className="th">Model</th>
-                  <th className="th text-right">Prompt $/1K</th>
-                  <th className="th text-right">Completion $/1K</th>
-                  <th className="th text-right">Quality</th>
-                  <th className="th text-right">Policy Score</th>
-                  <th className="th text-center">Active</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {(data?.models ?? []).length === 0 && (
+            {loadingPricing ? (
+              <div className="py-12 text-center text-gray-500 text-sm">Loading…</div>
+            ) : (
+              <table className="w-full min-w-[580px]">
+                <thead className="border-b border-gray-800">
                   <tr>
-                    <td colSpan={7} className="td text-center text-gray-500 py-10">
-                      No models found. Run a pricing sync to populate.
-                    </td>
+                    <th className="th">Provider</th>
+                    <th className="th">Model</th>
+                    <th className="th text-right">Prompt $/1K</th>
+                    <th className="th text-right">Completion $/1K</th>
+                    <th className="th text-right">vs GPT-4o</th>
                   </tr>
-                )}
-                {(data?.models ?? []).map((m) => (
-                  <tr
-                    key={m.id}
-                    className={`hover:bg-gray-800/40 transition-colors ${!m.isActive ? 'opacity-40' : ''}`}
-                  >
-                    <td className="td">
-                      <span className="inline-block rounded bg-gray-800 px-2 py-0.5 text-xs font-mono text-gray-300">
-                        {m.provider}
-                      </span>
-                    </td>
-                    <td className="td">
-                      <div className="font-medium text-gray-100">{m.displayName}</div>
-                      <div className="text-xs text-gray-500 font-mono">{m.providerModelId}</div>
-                    </td>
-                    <td className="td text-right font-mono text-green-400">
-                      {fmt(m.promptUsdPer1k)}
-                    </td>
-                    <td className="td text-right font-mono text-green-400">
-                      {fmt(m.completionUsdPer1k)}
-                    </td>
-                    <td className="td text-right font-mono">
-                      {m.qualityScore != null ? m.qualityScore.toFixed(2) : '—'}
-                    </td>
-                    <td className="td text-right font-mono text-indigo-400">
-                      {score(m.policyScore)}
-                    </td>
-                    <td className="td text-center">
-                      <button
-                        onClick={() => toggleActive(m)}
-                        title={m.isActive ? 'Click to deactivate' : 'Click to activate'}
-                        className={`w-9 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                          m.isActive ? 'bg-indigo-600' : 'bg-gray-700'
-                        }`}
-                      >
-                        <span
-                          className={`block h-4 w-4 mx-0.5 rounded-full bg-white transition-transform ${
-                            m.isActive ? 'translate-x-4' : 'translate-x-0'
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {models.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="td text-center text-gray-500 py-10">
+                        No pricing data yet.
+                      </td>
+                    </tr>
+                  )}
+                  {models.map((m) => {
+                    const vs = vsGpt4o(m, gpt4oPrice);
+                    const isBaseline = vs === 'baseline';
+                    const isCheaper = vs.startsWith('-');
+                    return (
+                      <tr key={m.id} className="hover:bg-gray-800/40 transition-colors">
+                        <td className="td">
+                          <span className="inline-block rounded bg-gray-800 px-2 py-0.5 text-xs font-mono text-gray-300">
+                            {m.provider}
+                          </span>
+                        </td>
+                        <td className="td">
+                          <div className="font-medium text-gray-100">{m.display_name}</div>
+                          <div className="text-xs text-gray-500 font-mono">
+                            {m.provider_model_id}
+                          </div>
+                        </td>
+                        <td className="td text-right font-mono text-green-400">
+                          {fmt(m.prompt_usd_per_1k)}
+                        </td>
+                        <td className="td text-right font-mono text-green-400">
+                          {fmt(m.completion_usd_per_1k)}
+                        </td>
+                        <td
+                          className={`td text-right font-mono font-semibold ${
+                            isBaseline
+                              ? 'text-gray-500'
+                              : isCheaper
+                              ? 'text-emerald-400'
+                              : 'text-gray-400'
                           }`}
-                        />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        >
+                          {vs}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
-        )}
-      </div>
-    </AuthGuard>
+        </section>
+
+        {/* Try-it widget */}
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            Try the Model Selector
+          </h2>
+          <div className="card p-6 space-y-5">
+            <div className="flex flex-wrap gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 font-medium">Prompt tokens</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input w-36"
+                  value={promptTokens}
+                  onChange={(e) => setPromptTokens(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400 font-medium">Completion tokens</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input w-36"
+                  value={completionTokens}
+                  onChange={(e) => setCompletionTokens(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400 font-medium">Policy</label>
+              <div className="flex flex-wrap gap-2">
+                {POLICIES.map((p) => (
+                  <button
+                    key={p.name}
+                    onClick={() => setPolicy(p.name)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                      policy === p.name
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                        : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {p.label}
+                    <span className="ml-1.5 text-xs opacity-60">{p.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={handleSelect} disabled={querying} className="btn-primary">
+              {querying ? 'Querying…' : '→ Find best model'}
+            </button>
+
+            {queryError && <p className="text-sm text-red-400">{queryError}</p>}
+
+            {result && (
+              <div className="border border-gray-700 rounded-lg p-4 space-y-3 bg-gray-900/60">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">Recommended</div>
+                    <div className="text-lg font-semibold text-indigo-300">
+                      {result.selected.provider} / {result.selected.model}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-gray-500 mb-0.5">Est. cost</div>
+                    <div className="font-mono text-green-400 font-semibold">
+                      ${result.selected.estimated_cost_usd.toFixed(6)}
+                    </div>
+                  </div>
+                </div>
+
+                {result.fallbacks.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-1.5">Fallbacks</div>
+                    <div className="space-y-1">
+                      {result.fallbacks.map((f, i) => (
+                        <div
+                          key={i}
+                          className="text-sm text-gray-400 font-mono flex justify-between gap-4"
+                        >
+                          <span>
+                            {f.provider} / {f.model}
+                          </span>
+                          <span className="text-gray-600">${f.estimated_cost_usd.toFixed(6)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-gray-600 pt-1 border-t border-gray-800">
+                  Policy: {result.policy_used}
+                  {result.snapshot_date && ` · Pricing from ${result.snapshot_date}`}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="border-t border-gray-800 pt-6 flex flex-wrap gap-2 text-xs text-gray-600">
+          {['Cloudflare Workers', 'D1 (SQLite)', 'OpenRouter API', 'Next.js'].map((t) => (
+            <span key={t} className="bg-gray-900 border border-gray-800 rounded px-2 py-1">
+              {t}
+            </span>
+          ))}
+        </footer>
+      </main>
+    </div>
   );
 }

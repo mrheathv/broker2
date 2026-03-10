@@ -35,6 +35,32 @@ app.get('/api/health', (c) =>
   c.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
 
+// Public pricing snapshot — no auth required (used by landing page)
+app.get('/api/public/pricing', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT m.id, m.provider, m.provider_model_id, m.display_name,
+            ps.prompt_usd_per_1k, ps.completion_usd_per_1k, ps.snapshot_date
+     FROM models m
+     LEFT JOIN pricing_snapshots ps
+       ON ps.model_id = m.id
+       AND ps.snapshot_date = (
+         SELECT MAX(snapshot_date) FROM pricing_snapshots WHERE model_id = m.id
+       )
+     WHERE m.is_active = 1
+     ORDER BY m.provider, m.display_name`
+  ).all();
+
+  const rows = results ?? [];
+  const snapshotDate =
+    rows
+      .map((r) => (r as { snapshot_date?: string }).snapshot_date)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
+
+  return c.json({ models: rows, snapshotDate });
+});
+
 // Downstream apps call this — no admin auth required
 // Add your own API-key middleware here before going to production
 app.post('/api/select-model', selectModelHandler);

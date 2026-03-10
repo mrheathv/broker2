@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (getToken()) router.replace('/');
+    if (getToken()) router.replace('/admin');
   }, [router]);
 
   async function handleSubmit(e: FormEvent) {
@@ -35,7 +35,7 @@ export default function LoginPage() {
       }
 
       setToken(password);
-      router.push('/');
+      router.push('/admin');
     } catch (err) {
       setError('Could not reach the API. Is the worker running?');
       console.error(err);
