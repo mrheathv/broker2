@@ -133,7 +133,7 @@ export default function LandingPage() {
                       </td>
                     </tr>
                   )}
-                  {models.map((m) => {
+                  {models.filter((m) => m.intelligence_index != null || m.coding_index != null).map((m) => {
                     const vs = vsGpt4o(m, gpt4oPrice);
                     const isBaseline = vs === 'baseline';
                     const isCheaper = vs.startsWith('-');
