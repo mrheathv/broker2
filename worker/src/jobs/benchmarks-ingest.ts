@@ -3,6 +3,10 @@ import type { Env } from '../index';
 interface AAEvaluations {
   artificial_analysis_intelligence_index?: number | null;
   artificial_analysis_coding_index?: number | null;
+  // Latency field names observed in AA API v2 responses
+  latency_ms?: number | null;
+  artificial_analysis_latency_ms?: number | null;
+  median_latency_ms?: number | null;
   [key: string]: unknown;
 }
 
@@ -14,6 +18,7 @@ interface AAModel {
 interface BenchmarkScores {
   intelligence: number | null;
   coding: number | null;
+  latency: number | null;
 }
 
 interface IngestResult {
@@ -63,9 +68,17 @@ export async function runBenchmarksIngest(env: Env): Promise<IngestResult> {
   const bySlug = new Map<string, BenchmarkScores>();
   for (const m of aaModels) {
     if (!m.slug) continue;
+    const ev = m.evaluations;
+    // Try known AA latency field names (P50 / median latency in ms)
+    const latency =
+      ev?.latency_ms ??
+      ev?.artificial_analysis_latency_ms ??
+      ev?.median_latency_ms ??
+      null;
     bySlug.set(m.slug, {
-      intelligence: m.evaluations?.artificial_analysis_intelligence_index ?? null,
-      coding: m.evaluations?.artificial_analysis_coding_index ?? null,
+      intelligence: ev?.artificial_analysis_intelligence_index ?? null,
+      coding: ev?.artificial_analysis_coding_index ?? null,
+      latency: latency != null ? Math.round(latency) : null,
     });
   }
 
@@ -101,14 +114,17 @@ export async function runBenchmarksIngest(env: Env): Promise<IngestResult> {
       if (existing) {
         await env.DB.prepare(
           `UPDATE performance_metrics
-           SET intelligence_index = ?, coding_index = ?, updated_at = datetime('now')
+           SET intelligence_index = ?,
+               coding_index = ?,
+               latency_p50_ms = COALESCE(?, latency_p50_ms),
+               updated_at = datetime('now')
            WHERE model_id = ?`
-        ).bind(scores.intelligence, scores.coding, dbModel.id).run();
+        ).bind(scores.intelligence, scores.coding, scores.latency, dbModel.id).run();
       } else {
         await env.DB.prepare(
-          `INSERT INTO performance_metrics (model_id, intelligence_index, coding_index)
-           VALUES (?, ?, ?)`
-        ).bind(dbModel.id, scores.intelligence, scores.coding).run();
+          `INSERT INTO performance_metrics (model_id, intelligence_index, coding_index, latency_p50_ms)
+           VALUES (?, ?, ?, ?)`
+        ).bind(dbModel.id, scores.intelligence, scores.coding, scores.latency).run();
       }
 
       synced++;

@@ -122,6 +122,8 @@ export default {
 
   // Called by Cloudflare Cron Trigger (configured in wrangler.toml)
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(runPricingIngest(env));
+    ctx.waitUntil(
+      Promise.all([runPricingIngest(env), runBenchmarksIngest(env)])
+    );
   },
 };
