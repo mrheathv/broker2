@@ -111,8 +111,9 @@ export default function LandingPage() {
             {loadingPricing ? (
               <div className="py-12 text-center text-gray-500 text-sm">Loading…</div>
             ) : (
+              <div className="max-h-[480px] overflow-y-auto">
               <table className="w-full min-w-[580px]">
-                <thead className="border-b border-gray-800">
+                <thead className="border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
                   <tr>
                     <th className="th">Provider</th>
                     <th className="th">Model</th>
@@ -168,6 +169,7 @@ export default function LandingPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </section>
