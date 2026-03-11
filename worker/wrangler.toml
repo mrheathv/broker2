@@ -12,5 +12,5 @@ migrations_dir = "migrations"
 # Override ADMIN_PASSWORD via Cloudflare dashboard Secrets (never commit real passwords)
 ADMIN_PASSWORD = "changeme"
 
-[[triggers]]
+[triggers]
 crons = ["0 8 * * *"]
