@@ -177,6 +177,10 @@ export const api = {
     request<{ synced: number; errors: string[]; date: string }>('/api/jobs/pricing-ingest', {
       method: 'POST',
     }),
+  syncBenchmarks: () =>
+    request<{ synced: number; skipped: number; errors: string[] }>('/api/jobs/benchmarks-ingest', {
+      method: 'POST',
+    }),
 
   // Public (no auth)
   getPublicPricing: () =>
