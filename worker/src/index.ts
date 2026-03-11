@@ -39,13 +39,15 @@ app.get('/api/health', (c) =>
 app.get('/api/public/pricing', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT m.id, m.provider, m.provider_model_id, m.display_name,
-            ps.prompt_usd_per_1k, ps.completion_usd_per_1k, ps.snapshot_date
+            ps.prompt_usd_per_1k, ps.completion_usd_per_1k, ps.snapshot_date,
+            pm.latency_p50_ms, pm.quality_score_overall
      FROM models m
      LEFT JOIN pricing_snapshots ps
        ON ps.model_id = m.id
        AND ps.snapshot_date = (
          SELECT MAX(snapshot_date) FROM pricing_snapshots WHERE model_id = m.id
        )
+     LEFT JOIN performance_metrics pm ON pm.model_id = m.id
      WHERE m.is_active = 1
      ORDER BY m.provider, m.display_name`
   ).all();

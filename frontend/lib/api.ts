@@ -43,6 +43,8 @@ export interface PublicPricingModel {
   prompt_usd_per_1k: number | null;
   completion_usd_per_1k: number | null;
   snapshot_date: string | null;
+  latency_p50_ms: number | null;
+  quality_score_overall: number | null;
 }
 
 export interface SelectModelResponse {

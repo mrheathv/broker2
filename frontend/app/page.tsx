@@ -112,7 +112,7 @@ export default function LandingPage() {
               <div className="py-12 text-center text-gray-500 text-sm">Loading…</div>
             ) : (
               <div className="max-h-[480px] overflow-y-auto">
-              <table className="w-full min-w-[580px]">
+              <table className="w-full min-w-[760px]">
                 <thead className="border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
                   <tr>
                     <th className="th">Provider</th>
@@ -120,12 +120,14 @@ export default function LandingPage() {
                     <th className="th text-right">Prompt $/1K</th>
                     <th className="th text-right">Completion $/1K</th>
                     <th className="th text-right">vs GPT-4o</th>
+                    <th className="th text-right">Latency p50</th>
+                    <th className="th text-right">Quality</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {models.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="td text-center text-gray-500 py-10">
+                      <td colSpan={7} className="td text-center text-gray-500 py-10">
                         No pricing data yet.
                       </td>
                     </tr>
@@ -163,6 +165,14 @@ export default function LandingPage() {
                           }`}
                         >
                           {vs}
+                        </td>
+                        <td className="td text-right font-mono text-gray-300">
+                          {m.latency_p50_ms != null ? `${m.latency_p50_ms} ms` : '—'}
+                        </td>
+                        <td className="td text-right font-mono text-blue-400">
+                          {m.quality_score_overall != null
+                            ? (m.quality_score_overall * 100).toFixed(0) + '%'
+                            : '—'}
                         </td>
                       </tr>
                     );
