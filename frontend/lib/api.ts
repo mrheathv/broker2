@@ -44,7 +44,8 @@ export interface PublicPricingModel {
   completion_usd_per_1k: number | null;
   snapshot_date: string | null;
   latency_p50_ms: number | null;
-  quality_score_overall: number | null;
+  intelligence_index: number | null;
+  coding_index: number | null;
 }
 
 export interface SelectModelResponse {

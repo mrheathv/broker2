@@ -9,10 +9,12 @@ import { listModels, updateModel } from './routes/admin/models';
 import { listPerformance, upsertPerformance } from './routes/admin/performance';
 import { listPolicies, createPolicy, updatePolicy, deletePolicy } from './routes/admin/policies';
 import { runPricingIngest } from './jobs/pricing-ingest';
+import { runBenchmarksIngest } from './jobs/benchmarks-ingest';
 
 export type Env = {
   DB: D1Database;
   ADMIN_PASSWORD: string;
+  ARTIFICIAL_ANALYSIS_API_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -40,7 +42,7 @@ app.get('/api/public/pricing', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT m.id, m.provider, m.provider_model_id, m.display_name,
             ps.prompt_usd_per_1k, ps.completion_usd_per_1k, ps.snapshot_date,
-            pm.latency_p50_ms, pm.quality_score_overall
+            pm.latency_p50_ms, pm.intelligence_index, pm.coding_index
      FROM models m
      LEFT JOIN pricing_snapshots ps
        ON ps.model_id = m.id
@@ -97,6 +99,18 @@ app.post('/api/jobs/pricing-ingest', async (c) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[pricing-ingest] Unhandled error:', msg);
+    return c.json({ error: msg }, 500);
+  }
+});
+
+// Manual benchmarks ingest trigger
+app.post('/api/jobs/benchmarks-ingest', async (c) => {
+  try {
+    const result = await runBenchmarksIngest(c.env);
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[benchmarks-ingest] Unhandled error:', msg);
     return c.json({ error: msg }, 500);
   }
 });
