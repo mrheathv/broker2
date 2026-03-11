@@ -19,6 +19,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [syncingBenchmarks, setSyncingBenchmarks] = useState(false);
+  const [benchmarksMsg, setBenchmarksMsg] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -50,6 +52,21 @@ export default function DashboardPage() {
       setSyncMsg(err instanceof Error ? err.message : 'Sync failed');
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleSyncBenchmarks() {
+    setSyncingBenchmarks(true);
+    setBenchmarksMsg('');
+    try {
+      const result = await api.syncBenchmarks();
+      setBenchmarksMsg(
+        `Synced ${result.synced} models${result.errors.length ? ` (${result.errors.length} errors)` : ''}.`
+      );
+    } catch (err) {
+      setBenchmarksMsg(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncingBenchmarks(false);
     }
   }
 
@@ -85,6 +102,10 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            {benchmarksMsg && <span className="text-xs text-gray-400">{benchmarksMsg}</span>}
+            <button onClick={handleSyncBenchmarks} disabled={syncingBenchmarks} className="btn-secondary">
+              {syncingBenchmarks ? 'Syncing…' : 'Sync Benchmarks'}
+            </button>
             {syncMsg && <span className="text-xs text-gray-400">{syncMsg}</span>}
             <button onClick={handleSync} disabled={syncing} className="btn-primary">
               {syncing ? 'Syncing…' : 'Sync Pricing Now'}

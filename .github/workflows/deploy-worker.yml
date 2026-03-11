@@ -21,8 +21,12 @@ jobs:
       - run: npm install
       - name: Mark pre-existing migrations as applied
         run: |
+          # Only mark 0001_benchmarks.sql as applied if the intelligence_index column already
+          # exists (i.e. the migration was previously applied manually outside of CI).
+          # This prevents the migration from being skipped on fresh databases where the
+          # columns have not been added yet.
           npx wrangler d1 execute model-board --remote --command \
-            "INSERT OR IGNORE INTO d1_migrations (name) VALUES ('0001_benchmarks.sql')" || true
+            "INSERT OR IGNORE INTO d1_migrations (name) SELECT '0001_benchmarks.sql' WHERE EXISTS (SELECT 1 FROM pragma_table_info('performance_metrics') WHERE name = 'intelligence_index')" || true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
