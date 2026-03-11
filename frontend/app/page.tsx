@@ -111,20 +111,24 @@ export default function LandingPage() {
             {loadingPricing ? (
               <div className="py-12 text-center text-gray-500 text-sm">Loading…</div>
             ) : (
-              <table className="w-full min-w-[580px]">
-                <thead className="border-b border-gray-800">
+              <div className="max-h-[480px] overflow-y-auto">
+              <table className="w-full min-w-[880px]">
+                <thead className="border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
                   <tr>
                     <th className="th">Provider</th>
                     <th className="th">Model</th>
                     <th className="th text-right">Prompt $/1K</th>
                     <th className="th text-right">Completion $/1K</th>
                     <th className="th text-right">vs GPT-4o</th>
+                    <th className="th text-right">Latency p50</th>
+                    <th className="th text-right">Intelligence</th>
+                    <th className="th text-right">Coding</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {models.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="td text-center text-gray-500 py-10">
+                      <td colSpan={8} className="td text-center text-gray-500 py-10">
                         No pricing data yet.
                       </td>
                     </tr>
@@ -163,11 +167,21 @@ export default function LandingPage() {
                         >
                           {vs}
                         </td>
+                        <td className="td text-right font-mono text-gray-300">
+                          {m.latency_p50_ms != null ? `${m.latency_p50_ms} ms` : '—'}
+                        </td>
+                        <td className="td text-right font-mono text-blue-400">
+                          {m.intelligence_index != null ? m.intelligence_index.toFixed(1) : '—'}
+                        </td>
+                        <td className="td text-right font-mono text-purple-400">
+                          {m.coding_index != null ? m.coding_index.toFixed(1) : '—'}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </section>
